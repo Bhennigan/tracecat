@@ -43,6 +43,10 @@ from tracecat.auth.users import (
     auth_backend,
     fastapi_users,
 )
+from tracecat.basecamp.ingestion.router import router as basecamp_ingestion_router
+from tracecat.basecamp.integration.router import router as basecamp_integration_router
+from tracecat.basecamp.schema.router import router as basecamp_schema_router
+from tracecat.basecamp.storage.router import router as basecamp_storage_router
 from tracecat.cases.attachments.internal_router import (
     router as internal_case_attachments_router,
 )
@@ -372,6 +376,11 @@ def create_app(**kwargs) -> FastAPI:
         vcs_router,
         dependencies=[Depends(feature_flag_dep(FeatureFlag.GIT_SYNC))],
     )
+    # Base Camp OS routers
+    app.include_router(basecamp_ingestion_router)
+    app.include_router(basecamp_schema_router)
+    app.include_router(basecamp_storage_router)
+    app.include_router(basecamp_integration_router)
     app.include_router(
         fastapi_users.get_users_router(UserRead, UserUpdate),
         prefix="/users",

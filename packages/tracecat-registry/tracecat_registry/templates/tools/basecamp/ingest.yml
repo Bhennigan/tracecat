@@ -1,0 +1,33 @@
+type: action
+definition:
+  name: ingest
+  namespace: tools.basecamp
+  title: Ingest data
+  description: Ingest data into Base Camp OS from a workflow. Automatically creates a schema if not provided.
+  display_group: Base Camp OS
+  expects:
+    data:
+      type: list[dict[str, Any]] | dict[str, Any]
+      description: Data to ingest. Can be a single record or a list of records.
+    source_id:
+      type: str | None
+      description: Optional data source ID to associate with the ingestion.
+      default: null
+    schema_id:
+      type: str | None
+      description: Optional schema ID to use for validation.
+      default: null
+  steps:
+    - ref: ingest_data
+      action: core.http_request
+      args:
+        url: ${{ ENV.TRACECAT__API_URL }}/basecamp/tracecat/ingest
+        method: POST
+        headers:
+          Authorization: Bearer ${{ ENV.TRACECAT__SERVICE_KEY }}
+          X-Tracecat-Workspace-Id: ${{ CONTEXT.workspace_id }}
+        payload:
+          data: ${{ inputs.data }}
+          source_id: ${{ inputs.source_id }}
+          schema_id: ${{ inputs.schema_id }}
+  returns: ${{ steps.ingest_data.result }}

@@ -1,0 +1,46 @@
+type: action
+definition:
+  name: list_sources
+  namespace: tools.basecamp
+  title: List data sources
+  description: List configured data sources in Base Camp OS.
+  display_group: Base Camp OS
+  expects:
+    source_type:
+      type: str | None
+      description: Optional filter by source type (file_upload, api, file_watch, tracecat_trigger).
+      default: null
+    is_active:
+      type: bool | None
+      description: Optional filter by active status.
+      default: null
+    limit:
+      type: int
+      description: Maximum number of sources to return.
+      default: 100
+  steps:
+    - ref: build_params
+      action: core.script.run_python
+      args:
+        inputs:
+          source_type: ${{ inputs.source_type }}
+          is_active: ${{ inputs.is_active }}
+          limit: ${{ inputs.limit }}
+        script: |
+          def main(source_type, is_active, limit):
+              params = {"limit": limit}
+              if source_type is not None:
+                  params["source_type"] = source_type
+              if is_active is not None:
+                  params["is_active"] = str(is_active).lower()
+              return params
+    - ref: list_sources
+      action: core.http_request
+      args:
+        url: ${{ ENV.TRACECAT__API_URL }}/basecamp/ingest/sources
+        method: GET
+        headers:
+          Authorization: Bearer ${{ ENV.TRACECAT__SERVICE_KEY }}
+          X-Tracecat-Workspace-Id: ${{ CONTEXT.workspace_id }}
+        params: ${{ steps.build_params.result }}
+  returns: ${{ steps.list_sources.result }}

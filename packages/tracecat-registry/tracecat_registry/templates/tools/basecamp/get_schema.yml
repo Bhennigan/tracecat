@@ -1,0 +1,38 @@
+type: action
+definition:
+  name: get_schema
+  namespace: tools.basecamp
+  title: Get schema
+  description: Retrieve a schema definition from Base Camp OS.
+  display_group: Base Camp OS
+  expects:
+    schema_id:
+      type: str
+      description: The schema ID to retrieve.
+    version:
+      type: int | None
+      description: Optional specific version to retrieve. Defaults to latest.
+      default: null
+  steps:
+    - ref: build_url
+      action: core.script.run_python
+      args:
+        inputs:
+          schema_id: ${{ inputs.schema_id }}
+          version: ${{ inputs.version }}
+          api_url: ${{ ENV.TRACECAT__API_URL }}
+        script: |
+          def main(schema_id, version, api_url):
+              url = f"{api_url}/basecamp/schemas/{schema_id}"
+              if version is not None:
+                  url = f"{url}?version={version}"
+              return url
+    - ref: get_schema
+      action: core.http_request
+      args:
+        url: ${{ steps.build_url.result }}
+        method: GET
+        headers:
+          Authorization: Bearer ${{ ENV.TRACECAT__SERVICE_KEY }}
+          X-Tracecat-Workspace-Id: ${{ CONTEXT.workspace_id }}
+  returns: ${{ steps.get_schema.result }}

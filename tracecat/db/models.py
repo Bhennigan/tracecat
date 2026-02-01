@@ -68,6 +68,12 @@ from tracecat.invitations.enums import InvitationStatus
 from tracecat.secrets.constants import DEFAULT_SECRETS_ENVIRONMENT
 from tracecat.tiers.types import EntitlementsDict
 from tracecat.workspaces.schemas import WorkspaceSettings
+from tracecat.basecamp.enums import (
+    DataSourceType,
+    FileFormat,
+    IngestionState,
+    SchemaStatus,
+)
 
 _UNSET = object()
 
@@ -78,6 +84,12 @@ CASE_TASK_STATUS_ENUM = Enum(CaseTaskStatus, name="casetaskstatus")
 INTERACTION_STATUS_ENUM = Enum(InteractionStatus, name="interactionstatus")
 APPROVAL_STATUS_ENUM = Enum(ApprovalStatus, name="approvalstatus")
 INVITATION_STATUS_ENUM = Enum(InvitationStatus, name="invitationstatus")
+
+# Basecamp enums
+INGESTION_STATE_ENUM = Enum(IngestionState, name="ingestionstate")
+DATA_SOURCE_TYPE_ENUM = Enum(DataSourceType, name="datasourcetype")
+SCHEMA_STATUS_ENUM = Enum(SchemaStatus, name="schemastatus")
+FILE_FORMAT_ENUM = Enum(FileFormat, name="fileformat")
 
 
 # Naming convention for constraints so Alembic can generate deterministic names
@@ -2919,3 +2931,162 @@ class OrganizationTier(Base, TimestampMixin):
         "Organization", back_populates="organization_tier"
     )
     tier: Mapped[Tier] = relationship("Tier")
+
+
+# --- Base Camp OS Models ---
+
+
+class BaseCampSchema(WorkspaceModel):
+    """Schema definition for data ingestion.
+
+    Stores the structure and field definitions for data records.
+    Supports versioning for schema evolution.
+    """
+
+    __tablename__ = "basecamp_schema"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "name", "version"),
+        Index("ix_basecamp_schema_workspace_id", "workspace_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID, default=uuid.uuid4, nullable=False, unique=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    status: Mapped[SchemaStatus] = mapped_column(
+        SCHEMA_STATUS_ENUM, default=SchemaStatus.DRAFT, nullable=False
+    )
+    fields: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB,
+        default=list,
+        nullable=False,
+        doc="List of field definitions with name, type, nullable, default",
+    )
+
+
+class DataSource(WorkspaceModel):
+    """Configured data source for ingestion.
+
+    Represents a connection to a data source such as API, file watch, or Tracecat trigger.
+    """
+
+    __tablename__ = "data_source"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "name"),
+        Index("ix_data_source_workspace_id", "workspace_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID, default=uuid.uuid4, nullable=False, unique=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_type: Mapped[DataSourceType] = mapped_column(
+        DATA_SOURCE_TYPE_ENUM, nullable=False
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    config: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+        doc="Source-specific configuration (e.g., API endpoints, file paths)",
+    )
+    schema_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID,
+        ForeignKey("basecamp_schema.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Relationships
+    schema: Mapped[BaseCampSchema | None] = relationship(
+        "BaseCampSchema", lazy="select"
+    )
+
+
+class IngestionJob(WorkspaceModel):
+    """Tracks the state and progress of an ingestion job.
+
+    Implements a state machine: RECEIVED -> ANALYZING -> VALIDATING -> TRANSFORMING -> LOADING -> COMPLETE/FAILED
+    """
+
+    __tablename__ = "ingestion_job"
+    __table_args__ = (
+        Index("ix_ingestion_job_workspace_id", "workspace_id"),
+        Index("ix_ingestion_job_state", "state"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID, default=uuid.uuid4, nullable=False, unique=True
+    )
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID,
+        ForeignKey("data_source.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    schema_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID,
+        ForeignKey("basecamp_schema.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    state: Mapped[IngestionState] = mapped_column(
+        INGESTION_STATE_ENUM, default=IngestionState.RECEIVED, nullable=False
+    )
+    file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    file_format: Mapped[FileFormat | None] = mapped_column(
+        FILE_FORMAT_ENUM, nullable=True
+    )
+    total_records: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    processed_records: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failed_records: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+
+    # Relationships
+    source: Mapped[DataSource | None] = relationship("DataSource", lazy="select")
+    schema: Mapped[BaseCampSchema | None] = relationship(
+        "BaseCampSchema", lazy="select"
+    )
+
+
+class DataRecord(WorkspaceModel):
+    """Normalized data record stored from ingestion.
+
+    Stores the actual data records with JSONB for flexible schema support.
+    """
+
+    __tablename__ = "data_record"
+    __table_args__ = (
+        Index("ix_data_record_workspace_id", "workspace_id"),
+        Index("ix_data_record_schema_id", "schema_id"),
+        Index("ix_data_record_job_id", "job_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID, default=uuid.uuid4, nullable=False, unique=True
+    )
+    schema_id: Mapped[uuid.UUID] = mapped_column(
+        UUID,
+        ForeignKey("basecamp_schema.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    job_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID,
+        ForeignKey("ingestion_job.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    data: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        doc="The actual record data stored as JSONB",
+    )
+
+    # Relationships
+    schema: Mapped[BaseCampSchema] = relationship("BaseCampSchema", lazy="select")
+    job: Mapped[IngestionJob | None] = relationship("IngestionJob", lazy="select")

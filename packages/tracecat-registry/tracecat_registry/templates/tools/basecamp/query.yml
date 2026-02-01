@@ -1,0 +1,39 @@
+type: action
+definition:
+  name: query
+  namespace: tools.basecamp
+  title: Query data
+  description: Query data from Base Camp OS with filtering support.
+  display_group: Base Camp OS
+  expects:
+    schema_id:
+      type: str
+      description: The schema ID to query records from.
+    filters:
+      type: dict[str, Any]
+      description: |
+        Filters to apply. Supports exact match, IN clause, and comparison operators.
+        Examples:
+        - Exact match: {"field": "value"}
+        - IN clause: {"field": ["value1", "value2"]}
+        - Comparison: {"field": {"$gt": 10, "$lt": 20}}
+        - Pattern: {"field": {"$like": "prefix"}}
+      default: {}
+    limit:
+      type: int
+      description: Maximum number of records to return.
+      default: 100
+  steps:
+    - ref: query_data
+      action: core.http_request
+      args:
+        url: ${{ ENV.TRACECAT__API_URL }}/basecamp/tracecat/query
+        method: POST
+        headers:
+          Authorization: Bearer ${{ ENV.TRACECAT__SERVICE_KEY }}
+          X-Tracecat-Workspace-Id: ${{ CONTEXT.workspace_id }}
+        payload:
+          schema_id: ${{ inputs.schema_id }}
+          filters: ${{ inputs.filters }}
+          limit: ${{ inputs.limit }}
+  returns: ${{ steps.query_data.result }}
