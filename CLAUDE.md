@@ -35,8 +35,11 @@ uv sync
 ```
 
 ### Development Stack
+
+IMPORTANT: if there's a docker compose stack called `tracecat` running, ignore the following instructions and use the `tracecat` stack via `docker compose` instead.
+
 ```bash
-# IMPORTANT: Always use `just cluster` to manage the development stack
+# Use `just cluster` to manage the development stack
 # This handles database, Temporal, Redis, MinIO, API, and UI services
 # It also manages port allocation across multiple worktrees
 
@@ -74,8 +77,6 @@ just cluster list            # List all running clusters
 - Need Temporal for workflow testing → `just cluster up -d`
 - Need to check service logs → `just cluster logs <service>`
 - Need to restart after code changes → `just cluster restart <service>`
-
-**Do NOT use raw `docker` or `docker compose` commands** - the cluster script handles environment variables, port allocation, and worktree isolation automatically.
 
 ### Testing
 ```bash
@@ -149,12 +150,26 @@ uv run basedpyright tracecat/api/
 # - Using `Any` when a more specific type is possible
 ```
 
+### Pre-push Verification
+**IMPORTANT**: Always run these checks before pushing. Pre-commit hooks catch most issues, but you should verify locally if in doubt.
+```bash
+# Run all CI-equivalent checks (must all pass before pushing)
+uv run ruff check .                          # Python lint (strict, no auto-fix)
+uv run ruff format --check .                 # Python format check
+uv run basedpyright --warnings --threads 4   # Python type checking
+pnpm -C frontend check                      # Frontend lint + format (Biome)
+pnpm -C frontend run typecheck              # TypeScript type checking
+```
+
 **Pre-commit hooks**: Runs automatically on commit:
 - Ruff (lint + format)
 - Gitleaks (secret detection)
 - YAML/TOML validation
 - UV lock sync
 - Frontend client generation (when tracecat/packages change)
+- basedpyright (Python type checking)
+- Frontend Biome check (lint + format on frontend changes)
+- TypeScript type checking (on frontend changes)
 
 **CI Requirements**: Both linting (`just fix`) and type checking (`just typecheck`) must pass in CI before merging.
 
@@ -308,6 +323,23 @@ Available predefined roles:
 
 ### UI Component Best Practices
 - **Avoid background colors on child elements within bordered containers**: When using shadcn components like SidebarInset that have rounded borders, don't add background colors (e.g., `bg-card`, `bg-background`) to immediate child elements. These backgrounds can paint over the parent's rounded border corners, making them appear cut off or missing. Instead, let the parent container handle the background styling.
+- **Standard settings/admin page layout**: All settings and admin pages must use this layout pattern for consistency:
+  ```tsx
+  <div className="size-full overflow-auto">
+    <div className="container flex h-full max-w-[1000px] flex-col space-y-12">
+      <div className="flex w-full">
+        <div className="items-start space-y-3 text-left">
+          <h2 className="text-2xl font-semibold tracking-tight">Title</h2>
+          <p className="text-base text-muted-foreground">Subtitle</p>
+        </div>
+        {/* Optional: action buttons on the right */}
+        {/* <div className="ml-auto flex items-center space-x-2">...</div> */}
+      </div>
+      {/* Page content */}
+    </div>
+  </div>
+  ```
+  Key rules: outer `size-full overflow-auto` wrapper, inner container with `max-w-[1000px]`, `space-y-12` section spacing, `h2` for page title, `text-base` on subtitle, `space-y-3` title-subtitle gap. For pages with a back link, place it above the `flex w-full` header div.
 
 ### Code Quality
 - **Ruff**: Line length 88, comprehensive linting rules

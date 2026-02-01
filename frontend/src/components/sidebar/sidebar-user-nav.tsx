@@ -1,117 +1,54 @@
 "use client"
 
-import { BookText, ExternalLink, LogOut, ShieldIcon, User } from "lucide-react"
+import { BookText, Settings, ShieldCheckIcon } from "lucide-react"
 import Link from "next/link"
-import { Icons } from "@/components/icons"
-import { Button } from "@/components/ui/button"
+import { useSettingsModal } from "@/components/settings/settings-modal-context"
+import { Separator } from "@/components/ui/separator"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { SidebarMenu, SidebarMenuItem } from "@/components/ui/sidebar"
-import UserAvatar from "@/components/user-avatar"
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar"
 import { siteConfig } from "@/config/site"
-import { userDefaults } from "@/config/user"
-import { useAuth, useAuthActions } from "@/hooks/use-auth"
+import { useAuth } from "@/hooks/use-auth"
 
 export function SidebarUserNav() {
   const { user } = useAuth()
-  const { logout } = useAuthActions()
-
-  const handleLogout = async () => {
-    await logout()
-  }
-  const displayName = user ? user.getDisplayName() : userDefaults.name
+  const { setOpen } = useSettingsModal()
 
   return (
     <SidebarMenu>
+      <Separator className="my-1" />
+
       <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon" className="h-9 w-9">
-              <UserAvatar
-                alt={displayName}
-                email={user?.email ?? userDefaults.email}
-                firstName={user?.firstName}
-                className="h-6 w-6 rounded-full"
-              />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-[--radix-dropdown-menu-trigger-width] min-w-[220px] rounded-lg"
-            side="right"
-            align="end"
-            sideOffset={4}
+        <SidebarMenuButton onClick={() => setOpen(true)} tooltip="Settings">
+          <Settings className="size-4" />
+          <span>Settings</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+
+      {user?.isSuperuser && (
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild tooltip="Admin">
+            <Link href="/admin">
+              <ShieldCheckIcon className="size-4" />
+              <span>Admin</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      )}
+
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild tooltip="Docs">
+          <Link
+            href={siteConfig.links.docs}
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">
-                  {displayName}
-                </p>
-                <p className="text-xs leading-none text-muted-foreground">
-                  {user?.email ?? userDefaults.email}
-                </p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <Link href="/profile/settings" className="w-full">
-                <DropdownMenuItem className="text-xs hover:cursor-pointer">
-                  <User className="mr-2 size-4" />
-                  <span>Account</span>
-                </DropdownMenuItem>
-              </Link>
-              <Link href="/profile/security" className="w-full">
-                <DropdownMenuItem className="text-xs hover:cursor-pointer">
-                  <ShieldIcon className="mr-2 size-4" />
-                  <span>Security</span>
-                </DropdownMenuItem>
-              </Link>
-            </DropdownMenuGroup>
-
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <Link
-                href={siteConfig.links.docs}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="my-2 w-full"
-              >
-                <DropdownMenuItem className="text-xs hover:cursor-pointer">
-                  <BookText className="mr-2 size-4" />
-                  Read the docs
-                  <ExternalLink className="ml-auto size-3 text-muted-foreground" />
-                </DropdownMenuItem>
-              </Link>
-              <Link
-                href={siteConfig.links.github}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="my-2 w-full"
-              >
-                <DropdownMenuItem className="text-xs hover:cursor-pointer">
-                  <Icons.gitHub className="mr-2 size-4" />
-                  GitHub repository
-                  <ExternalLink className="ml-auto size-3 text-muted-foreground" />
-                </DropdownMenuItem>
-              </Link>
-            </DropdownMenuGroup>
-
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-xs hover:cursor-pointer"
-              onClick={handleLogout}
-            >
-              <LogOut className="mr-2 size-4" />
-              <span>Logout</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <BookText className="size-4" />
+            <span>Docs</span>
+          </Link>
+        </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
   )

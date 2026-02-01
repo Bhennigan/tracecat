@@ -1,8 +1,8 @@
 import {
   AnvilIcon,
   FlaskConicalIcon,
+  LayersIcon,
   MessageSquareIcon,
-  SquareStackIcon,
   WorkflowIcon,
 } from "lucide-react"
 import {
@@ -10,11 +10,11 @@ import {
   EventUpdatedAt,
 } from "@/components/cases/cases-feed-event"
 import { Badge } from "@/components/ui/badge"
-import type { AgentSessionWithStatus } from "@/lib/agents"
+import type { InboxSessionItem } from "@/lib/agents"
 import { cn } from "@/lib/utils"
 
 interface ActivityItemProps {
-  session: AgentSessionWithStatus
+  session: InboxSessionItem
   isSelected: boolean
   onClick: () => void
 }
@@ -33,7 +33,7 @@ const SOURCE_CONFIGS: Record<SourceType, SourceConfig> = {
   },
   case: {
     label: "Case",
-    icon: SquareStackIcon,
+    icon: LayersIcon,
   },
   chat: {
     label: "Chat",

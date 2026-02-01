@@ -1,8 +1,9 @@
 "use client"
 
 import { ReactFlowProvider } from "@xyflow/react"
-import { LogOut } from "lucide-react"
+import { LogOut, Shield } from "lucide-react"
 import Image from "next/image"
+import Link from "next/link"
 import { useParams, usePathname } from "next/navigation"
 import TracecatIcon from "public/icon.png"
 import type React from "react"
@@ -14,7 +15,7 @@ import { DynamicNavbar } from "@/components/nav/dynamic-nav"
 import { AppSidebar } from "@/components/sidebar/app-sidebar"
 import { Button } from "@/components/ui/button"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import { useAuthActions } from "@/hooks/use-auth"
+import { useAuth, useAuthActions } from "@/hooks/use-auth"
 import { useWorkspaceManager } from "@/lib/hooks"
 import { WorkflowBuilderProvider } from "@/providers/builder"
 import { WorkflowProvider } from "@/providers/workflow"
@@ -55,6 +56,7 @@ export default function WorkspaceLayout({
       setLastWorkspaceId(workspaceId)
     }
   }, [setLastWorkspaceId, workspaceId])
+
   if (workspacesLoading) {
     return <CenteredSpinner />
   }
@@ -94,6 +96,7 @@ function WorkspaceChildren({ children }: { children: React.ReactNode }) {
   const isWorkflowBuilder = !!params?.workflowId
   const isCaseDetail = !!params?.caseId
   const isInboxPage = pathname?.includes("/inbox")
+  const isTableDetailPage = pathname?.match(/\/tables\/[^/]+/)
   const isSettingsPage = pathname?.includes("/settings")
   const isOrganizationPage = pathname?.includes("/organization")
   const isRegistryPage = pathname?.includes("/registry")
@@ -120,6 +123,11 @@ function WorkspaceChildren({ children }: { children: React.ReactNode }) {
 
   // Inbox pages have their own layout with chat sidebar
   if (isInboxPage) {
+    return <>{children}</>
+  }
+
+  // Table detail pages have their own layout with side panel
+  if (isTableDetailPage) {
     return <>{children}</>
   }
 
@@ -158,6 +166,7 @@ function WorkflowView({
 }
 
 function NoWorkspaces() {
+  const { user } = useAuth()
   const { logout } = useAuthActions()
   const handleLogout = async () => {
     await logout()
@@ -170,10 +179,20 @@ function NoWorkspaces() {
         You are not a member of any workspace. Please contact your
         administrator.
       </span>
-      <Button variant="outline" onClick={handleLogout}>
-        <LogOut className="mr-2 size-4" />
-        <span>Logout</span>
-      </Button>
+      <div className="flex gap-2">
+        {user?.isSuperuser && (
+          <Button variant="default" asChild>
+            <Link href="/admin">
+              <Shield className="mr-2 size-4" />
+              <span>Admin</span>
+            </Link>
+          </Button>
+        )}
+        <Button variant="outline" onClick={handleLogout}>
+          <LogOut className="mr-2 size-4" />
+          <span>Logout</span>
+        </Button>
+      </div>
     </main>
   )
 }

@@ -51,6 +51,8 @@ from tracecat.cases.attachments.internal_router import (
     router as internal_case_attachments_router,
 )
 from tracecat.cases.attachments.router import router as case_attachments_router
+from tracecat.cases.dropdowns.router import definitions_router as case_dropdowns_router
+from tracecat.cases.dropdowns.router import values_router as case_dropdown_values_router
 from tracecat.cases.durations.router import router as case_durations_router
 from tracecat.cases.internal_router import (
     comments_router as internal_comments_router,
@@ -70,7 +72,6 @@ from tracecat.cases.tags.internal_router import router as internal_case_tags_rou
 from tracecat.cases.tags.router import router as case_tags_router
 from tracecat.contexts import ctx_role
 from tracecat.db.dependencies import AsyncDBSession
-from tracecat.db.engine import get_async_session_context_manager
 from tracecat.editor.router import router as editor_router
 from tracecat.exceptions import EntitlementRequired, TracecatException
 from tracecat.feature_flags import (
@@ -91,6 +92,10 @@ from tracecat.middleware import (
     RequestLoggingMiddleware,
 )
 from tracecat.middleware.security import SecurityHeadersMiddleware
+from tracecat.organization.management import (
+    ensure_default_organization,
+    get_default_organization_id,
+)
 from tracecat.organization.router import router as org_router
 from tracecat.registry.actions.router import router as registry_actions_router
 from tracecat.registry.constants import DEFAULT_REGISTRY_ORIGIN
@@ -145,12 +150,7 @@ async def lifespan(app: FastAPI):
             expiration_days=config.TRACECAT__WORKFLOW_ARTIFACT_RETENTION_DAYS,
         )
 
-    # App
-    role = bootstrap_role()
-    async with get_async_session_context_manager() as session:
-        # Org
-        await setup_org_settings(session, role)
-        await setup_workspace_defaults(session, role)
+    await ensure_default_organization()
 
     # Spawn platform registry sync as background task (non-blocking)
     # Uses leader election to prevent race conditions across multiple API processes
@@ -364,6 +364,14 @@ def create_app(**kwargs) -> FastAPI:
     app.include_router(case_tag_definitions_router)
     app.include_router(case_attachments_router)
     app.include_router(
+        case_dropdowns_router,
+        dependencies=[Depends(feature_flag_dep(FeatureFlag.CASE_DROPDOWNS))],
+    )
+    app.include_router(
+        case_dropdown_values_router,
+        dependencies=[Depends(feature_flag_dep(FeatureFlag.CASE_DROPDOWNS))],
+    )
+    app.include_router(
         case_durations_router,
         dependencies=[Depends(feature_flag_dep(FeatureFlag.CASE_DURATIONS))],
     )
@@ -525,7 +533,9 @@ async def info(session: AsyncDBSession) -> AppInfo:
 
     keys = {"auth_basic_enabled", "oauth_google_enabled", "saml_enabled"}
 
-    service = SettingsService(session, role=bootstrap_role())
+    # Get the default organization for platform-level settings
+    org_id = await get_default_organization_id(session)
+    service = SettingsService(session, role=bootstrap_role(org_id))
     settings = await service.list_org_settings(keys=keys)
     keyvalues = {s.key: service.get_value(s) for s in settings}
     for key in keys:
@@ -557,7 +567,7 @@ async def check_ready(session: AsyncDBSession) -> ReadinessResponse:
     expected_version = tracecat_registry.__version__
 
     # Check registry sync status
-    repos_service = PlatformRegistryReposService(session, role=None)
+    repos_service = PlatformRegistryReposService(session)
     repo = await repos_service.get_repository(DEFAULT_REGISTRY_ORIGIN)
 
     if repo is None or repo.current_version is None:
