@@ -3,6 +3,7 @@
 import {
   BlocksIcon,
   ChevronDown,
+  DatabaseIcon,
   InboxIcon,
   LayersPlus,
   LockKeyholeIcon,
@@ -129,6 +130,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: `${basePath}/tables`,
       icon: Table2Icon,
       isActive: pathname?.startsWith(`${basePath}/tables`),
+    },
+    {
+      title: "Base Camp",
+      url: `${basePath}/basecamp`,
+      icon: DatabaseIcon,
+      isActive: pathname?.startsWith(`${basePath}/basecamp`),
     },
     {
       title: "Variables",
